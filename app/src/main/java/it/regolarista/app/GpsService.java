@@ -36,6 +36,8 @@ public class GpsService extends Service implements LocationListener {
     public boolean running=false,armed=false,beepEnabled=true,autoGeographic=false;
     public long autoStartEpochMs=0,startElapsedMs=0;
     public double progressMeters=0, correctionMeters=0, speedKmh=0, accuracy=Double.NaN, lastError=0;
+    private final ProgressPredictor predictor = new ProgressPredictor();
+    private double partialOriginMeters=0;
     public boolean validFix=false,matched=true;
     public String gpsInfo="In attesa GNSS",sessionFile="";
     private LocationManager lm;
@@ -47,6 +49,7 @@ public class GpsService extends Service implements LocationListener {
     private final Runnable ticker=new Runnable(){public void run(){
         if(armed && !autoGeographic && System.currentTimeMillis()>=autoStartEpochMs) startNow();
         if(running){
+            predictor.tick(SystemClock.elapsedRealtime());
             lastError=engine.errorSeconds(elapsedSeconds(),effectiveProgress());
             if(beepEnabled && lastFixElapsed>0 && SystemClock.elapsedRealtime()-lastFixElapsed<5000){
                 long now=SystemClock.elapsedRealtime();double period=1000.0/engine.beepHz(lastError);
@@ -75,23 +78,25 @@ public class GpsService extends Service implements LocationListener {
         }else gpsInfo="Permesso GPS assente";}catch(Exception e){gpsInfo=e.getMessage();}
         handler.post(ticker);
     }
-    public void setTrack(Track t){track=t;prev=null;progressMeters=0;correctionMeters=0;matched=true;}
+    public void setTrack(Track t){track=t;prev=null;progressMeters=0;correctionMeters=0;partialOriginMeters=0;predictor.reset();matched=true;}
     public void armManual(){armed=false;startNow();}
     public void armClock(long when){autoStartEpochMs=when;armed=true;autoGeographic=false;running=false;}
     public void armGeo(){if(track==null)throw new IllegalStateException("Importare prima un GPX");armed=true;autoGeographic=true;running=false;}
     public void startNow(){
         if(running)stopSession();
-        correctionMeters=0;progressMeters=0;prev=null;lastError=0;
+        correctionMeters=0;progressMeters=0;partialOriginMeters=0;predictor.reset();prev=null;lastError=0;
         startElapsedMs=SystemClock.elapsedRealtime();lastToneElapsed=startElapsedMs;
         running=true;armed=false;validFix=false;
         File dir=getExternalFilesDir("sessions");if(dir==null)dir=getFilesDir();if(!dir.exists())dir.mkdirs();
         sessionFile=new File(dir,"regolarista_"+new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".csv").getAbsolutePath();
-        try{writer=new PrintWriter(new FileWriter(sessionFile));writer.println("timestamp_iso,lat,lon,accuracy_m,gps_speed_kmh,progress_m,correction_m,error_s,matched");writer.flush();}
+        try{writer=new PrintWriter(new FileWriter(sessionFile));writer.println("timestamp_iso,lat,lon,accuracy_m,gps_speed_kmh,progress_m,correction_m,error_s,matched,smoothed_progress_m,partial_m");writer.flush();}
         catch(Exception e){gpsInfo="Errore salvataggio: "+e.getMessage();}
     }
     public void stopSession(){running=false;armed=false;if(writer!=null){writer.flush();writer.close();writer=null;}}
     public double elapsedSeconds(){return running?(SystemClock.elapsedRealtime()-startElapsedMs)/1000.0:0;}
-    public double effectiveProgress(){return Math.max(0,progressMeters+correctionMeters);}
+    public double effectiveProgress(){return Math.max(0,(predictor.hasFix() && running?predictor.meters():progressMeters)+correctionMeters);}
+    public double partialProgress(){return Math.max(0,effectiveProgress()-partialOriginMeters);}
+    public void resetPartial(){partialOriginMeters=effectiveProgress();if(listener!=null)listener.changed();}
     public void adjust(int meters){correctionMeters+=meters;if(listener!=null)listener.changed();}
     @Override public void onLocationChanged(Location loc){
         long now=SystemClock.elapsedRealtime();lastFixElapsed=now;
@@ -131,11 +136,12 @@ public class GpsService extends Service implements LocationListener {
             }else gpsInfo="Fuori traccia · progressiva congelata";
         }
         prev=loc;
+        predictor.observe(progressMeters,loc.hasSpeed()?loc.getSpeed():Math.max(0,speedKmh/3.6),now);
         lastError=engine.errorSeconds(elapsedSeconds(),effectiveProgress());
         if(writer!=null){
-            writer.printf(Locale.US,"%s,%.8f,%.8f,%.1f,%.2f,%.2f,%.2f,%.3f,%s%n",
+            writer.printf(Locale.US,"%s,%.8f,%.8f,%.1f,%.2f,%.2f,%.2f,%.3f,%s,%.2f,%.2f%n",
                 new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX",Locale.US).format(new Date()),
-                loc.getLatitude(),loc.getLongitude(),accuracy,speedKmh,progressMeters,correctionMeters,lastError,matched);
+                loc.getLatitude(),loc.getLongitude(),accuracy,speedKmh,progressMeters,correctionMeters,lastError,matched,effectiveProgress(),partialProgress());
             writer.flush();
         }
     }

@@ -34,7 +34,7 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final int PICK_GPX=33,EXPORT_CSV=34,REQUEST_LOCATION=35;
     private LinearLayout root;
-    private TextView errorView,stateView,speedView,recoveryView,odoView,gpsView,infoView,clockView;
+    private TextView errorView,stateView,speedView,recoveryView,odoView,partialView,gpsView,infoView,clockView;
     private DeviationBar bar;
     private Button beepButton,startButton,stopButton;
     private GpsService s;
@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(0xFF0B121B);
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(12),dp(10),dp(12),dp(10));scroll.addView(root);setContentView(scroll);
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView name=label("REGOLARISTA  ·  v0.1",12,0xFFB4C4D3);name.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        TextView name=label("REGOLARISTA  ·  v0.2",12,0xFFB4C4D3);name.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
         top.addView(name,new LinearLayout.LayoutParams(0,dp(30),1));
         gpsView=label("GNSS...",12,0xFF6BE3A1);top.addView(gpsView);
         root.addView(top);
@@ -84,6 +84,12 @@ public class MainActivity extends Activity {
         odoRow.addView(button("−10 m",()->adjust(-10)));
         odoRow.addView(button("+10 m",()->adjust(10)));
         root.addView(odoRow);
+        LinearLayout partialRow=new LinearLayout(this);partialRow.setGravity(Gravity.CENTER_VERTICAL);
+        partialView=label("PARZIALE  0,00 km",21,0xFFBCE6FF);
+        partialView.setGravity(Gravity.LEFT|Gravity.CENTER_VERTICAL);
+        partialRow.addView(partialView,new LinearLayout.LayoutParams(0,dp(53),1));
+        partialRow.addView(button("AZZERA PARZIALE",()->{if(service()){s.resetPartial();refresh();}}));
+        root.addView(partialRow);
         beepButton=button("Beep: ON",()->{if(service()){s.beepEnabled=!s.beepEnabled;refresh();}});
         root.addView(beepButton,new LinearLayout.LayoutParams(-1,dp(51)));
         clockView=label("TEMPO 00:00  ·  MEDIA 45,0 km/h",13,0xFFB1C4D4);root.addView(clockView);
@@ -131,6 +137,7 @@ public class MainActivity extends Activity {
         double target=s.engine.targetSpeedKmh(s.elapsedSeconds(),s.effectiveProgress(),3);
         recoveryView.setText(s.running?(target>maxRecovery?"RECUPERO IN 3 s\nNON FATTIBILE":String.format(Locale.ITALY,"RECUPERO IN 3 s\n%.1f km/h",target)):"RECUPERO IN 3 s\n-- km/h");
         odoView.setText(String.format(Locale.ITALY,"%.2f km",s.effectiveProgress()/1000));
+        partialView.setText(String.format(Locale.ITALY,"PARZIALE  %.2f km",s.partialProgress()/1000));
         beepButton.setText("BEEP " +(s.beepEnabled?"ON":"OFF"));
         gpsView.setText(s.gpsInfo);
         clockView.setText(String.format(Locale.ITALY,"TEMPO %s · MEDIA %.1f km/h",RegularityEngine.formatTime(s.elapsedSeconds()),s.engine.speedAt(s.effectiveProgress())));

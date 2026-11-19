@@ -1,3 +1,32 @@
+# Regolarista v0.2 — aggiornamento GNSS e parziale
+
+## Novità della v0.2
+
+- **Barra fluida tra aggiornamenti GNSS**: la progressiva stimata avanza ogni 100 ms usando la velocità rilevata dal GNSS, invece di restare ferma fino al fix successivo. Quando arriva il fix, la differenza viene assimilata gradualmente (costante di tempo ~0,65 s); la previsione viene fermata dopo 1,6 s senza aggiornamenti, per evitare deriva illimitata. Il dato GNSS non è più applicato di colpo alla barra, salvo inizializzazione dopo una nuova partenza.
+- **Odometro parziale**: nuovo indicatore in km a due decimali e pulsante `AZZERA PARZIALE`. La progressiva totale non viene azzerata. Il parziale riparte da zero a ogni nuova prova e quando si cambia traccia. Le correzioni manuali ±10 m influenzano entrambi gli odometri, mantenendo la calibrazione.
+- **CSV**: aggiunte le colonne `smoothed_progress_m` e `partial_m` (le colonne precedenti sono conservate).
+- **GitHub Actions**: workflow con Ubuntu 24.04, setup-android v4 e caricamento Artifact denominato `Regolarista-v0.2-debug-apk`.
+
+## Installazione/aggiornamento del repository GitHub
+
+Estrarre lo ZIP e **caricare il contenuto della cartella `Regolarista-v0.1` nella radice del repository** (inclusa la directory nascosta `.github`). Sostituire i file omonimi; non creare una cartella aggiuntiva nel repository.
+
+In Actions → Build Regolarista APK → Run workflow, avviare una nuova compilazione e scaricare l'Artifact `Regolarista-v0.2-debug-apk` dalla pagina della singola esecuzione completata. Estrarre `app-debug.apk`.
+
+## Test locali senza SDK Android
+
+```bash
+javac -d out app/src/main/java/it/regolarista/app/{RegularityEngine,ProgressPredictor}.java test/{EngineTest,ProgressPredictorTest}.java
+java -cp out EngineTest
+java -cp out ProgressPredictorTest
+```
+
+## Attenzione
+
+La previsione tra i fix rende fluida la visualizzazione, **non aumenta la precisione assoluta del GNSS**. I salti di posizione molto grandi, i tratti fuori traccia e i ritardi del sensore possono ancora causare errori di misura. Verificare a veicolo fermo e poi su circuito/area sicura. La compilazione APK Android non è stata eseguita in questo ambiente.
+
+---
+
 # Regolarista 0.1 — Android (progetto sorgente)
 
 Applicazione Android **nativa Java, offline, senza librerie runtime esterne** dedicata all'allenamento nelle prove di regolarità a media. **L'APK non è incluso**, perché nell'ambiente dove è stato creato questo progetto non erano disponibili Android SDK/Gradle né accesso alla rete per scaricarli.
